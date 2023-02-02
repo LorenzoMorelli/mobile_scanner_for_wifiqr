@@ -1,7 +1,6 @@
 import AVFoundation
 import FlutterMacOS
 import Vision
-import AppKit
 
 public class MobileScannerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler, FlutterTexture, AVCaptureVideoDataOutputSampleBufferDelegate {
     
@@ -21,11 +20,6 @@ public class MobileScannerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
     
     // Image to be sent to the texture
     var latestBuffer: CVImageBuffer!
-
-    // optional window to limit scan search
-    var scanWindow: CGRect?
-    
-    var detectionSpeed: DetectionSpeed = DetectionSpeed.noDuplicates
     
     
 //    var analyzeMode: Int = 0
@@ -63,8 +57,6 @@ public class MobileScannerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
 //            switchAnalyzeMode(call, result)
         case "stop":
             stop(result)
-        case "updateScanWindow":
-            updateScanWindow(call)
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -95,56 +87,55 @@ public class MobileScannerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
     
     // Gets called when a new image is added to the buffer
     public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        // Ignore invalid textureId
         if textureId == nil {
             return
         }
-        guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-            print("Failed to get image buffer from sample buffer.")
-            return
-        }
-        latestBuffer = imageBuffer
-        registry.textureFrameAvailable(textureId)
         
-        if ((detectionSpeed == DetectionSpeed.normal || detectionSpeed == DetectionSpeed.noDuplicates) && i > 10 || detectionSpeed == DetectionSpeed.unrestricted) {
-            i = 0
-            let imageRequestHandler = VNImageRequestHandler(
-                cvPixelBuffer: latestBuffer,
-                orientation: .right)
+        i = i + 1;
+        
+        latestBuffer = CMSampleBufferGetImageBuffer(sampleBuffer)
+        registry.textureFrameAvailable(textureId)
+
+//        switch analyzeMode {
+//        case 1: // barcode
             
-                do {
-                  try imageRequestHandler.perform([VNDetectBarcodesRequest { (request, error) in
-                      if error == nil {
-                          if let results = request.results as? [VNBarcodeObservation] {
-                                for barcode in results {
-                                    if self.scanWindow != nil {
-                                        let match = self.isbarCodeInScanWindow(self.scanWindow!, barcode, self.latestBuffer)
-                                        if (!match) {
-                                            continue
-                                        }
-                                    }
+            // Limit the analyzer because the texture output will freeze otherwise
+            if i / 10 == 1 {
+                i = 0
+            } else {
+                return
+            }
+                let imageRequestHandler = VNImageRequestHandler(
+                    cvPixelBuffer: latestBuffer,
+                    orientation: .right)
 
-                                    let barcodeType = String(barcode.symbology.rawValue).replacingOccurrences(of: "VNBarcodeSymbology", with: "")
-                                    let event: [String: Any?] = ["name": "barcodeMac", "data" : ["payload": barcode.payloadStringValue, "symbology": barcodeType]]
-                                    self.sink?(event)
+            do {
+              try imageRequestHandler.perform([VNDetectBarcodesRequest { (request, error) in
+                  if error == nil {
+                      if let results = request.results as? [VNBarcodeObservation] {
+                                  for barcode in results {
+                                      let barcodeType = String(barcode.symbology.rawValue).replacingOccurrences(of: "VNBarcodeSymbology", with: "")
+                                      let event: [String: Any?] = ["name": "barcodeMac", "data" : ["payload": barcode.payloadStringValue, "symbology": barcodeType]]
+                                      self.sink?(event)
 
-        //                                    if barcodeType == "QR" {
-        //                                        let image = CIImage(image: source)
-        //                                        image?.cropping(to: barcode.boundingBox)
-        //                                        self.qrCodeDescriptor(qrCode: barcode, qrCodeImage: image!)
-        //                                    }
-                                      }
-                          }
-                      } else {
-                          print(error!.localizedDescription)
+  //                                    if barcodeType == "QR" {
+  //                                        let image = CIImage(image: source)
+  //                                        image?.cropping(to: barcode.boundingBox)
+  //                                        self.qrCodeDescriptor(qrCode: barcode, qrCodeImage: image!)
+  //                                    }
+                                  }
                       }
-                  }])
-                } catch {
-                  print(error)
-                }
-        } else {
-            i+=1
-        }
+                  } else {
+                      print(error!.localizedDescription)
+                  }
+              }])
+            } catch {
+              print(error)
+            }
+
+//        default: // none
+//            break
+//        }
     }
     
     func checkPermission(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
@@ -171,38 +162,6 @@ public class MobileScannerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
         }
     }
 
-    func updateScanWindow(_ call: FlutterMethodCall) {
-        let argReader = MapArgumentReader(call.arguments as? [String: Any])
-        let scanWindowData: Array? = argReader.floatArray(key: "rect")
-
-        if (scanWindowData == nil) {
-            return 
-        }
-
-        let minX = scanWindowData![0] 
-        let minY = scanWindowData![1]
-
-        let width = scanWindowData![2]  - minX
-        let height = scanWindowData![3] - minY
-
-        scanWindow = CGRect(x: minX, y: minY, width: width, height: height)
-    }
-
-    func isbarCodeInScanWindow(_ scanWindow: CGRect, _ barcode: VNBarcodeObservation, _ inputImage: CVImageBuffer) -> Bool {
-       let size = CVImageBufferGetEncodedSize(inputImage)
-
-        let imageWidth = size.width;
-        let imageHeight = size.height;
-
-        let minX = scanWindow.minX * imageWidth
-        let minY = scanWindow.minY * imageHeight
-        let width = scanWindow.width * imageWidth
-        let height = scanWindow.height * imageHeight
-
-        let scaledScanWindow = CGRect(x: minX, y: minY, width: width, height: height)
-        return scaledScanWindow.contains(barcode.boundingBox)
-    }
-
     func start(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
         if (device != nil) {
             result(FlutterError(code: "MobileScanner",
@@ -219,9 +178,6 @@ public class MobileScannerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
 //        let ratio: Int = argReader.int(key: "ratio")
         let torch: Bool = argReader.bool(key: "torch") ?? false
         let facing: Int = argReader.int(key: "facing") ?? 1
-        let speed: Int = (call.arguments as! Dictionary<String, Any?>)["speed"] as? Int ?? 0
-        
-        detectionSpeed = DetectionSpeed(rawValue: speed)!
 
         // Set the camera to use
         position = facing == 0 ? AVCaptureDevice.Position.front : .back
@@ -286,7 +242,9 @@ public class MobileScannerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
     
     func toggleTorch(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
         if (device == nil) {
-            result(nil)
+            result(FlutterError(code: "MobileScanner",
+                                    message: "Called toggleTorch() while stopped!",
+                                    details: nil))
             return
         }
         do {
@@ -306,8 +264,9 @@ public class MobileScannerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler,
 
     func stop(_ result: FlutterResult) {
         if (device == nil) {
-            result(nil)
-
+            result(FlutterError(code: "MobileScanner",
+                                    message: "Called stop() while already stopped!",
+                                    details: nil))
             return
         }
         captureSession.stopRunning()
@@ -365,10 +324,6 @@ class MapArgumentReader {
 
   func stringArray(key: String) -> [String]? {
     return args?[key] as? [String]
-  }
-
-  func floatArray(key: String) -> [CGFloat]? {
-    return args?[key] as? [CGFloat]
   }
   
 }

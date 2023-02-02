@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:mobile_scanner_example/scanner_error_widget.dart';
 
 class BarcodeScannerWithController extends StatefulWidget {
   const BarcodeScannerWithController({Key? key}) : super(key: key);
@@ -14,38 +13,15 @@ class BarcodeScannerWithController extends StatefulWidget {
 class _BarcodeScannerWithControllerState
     extends State<BarcodeScannerWithController>
     with SingleTickerProviderStateMixin {
-  BarcodeCapture? barcode;
+  String? barcode;
 
-  final MobileScannerController controller = MobileScannerController(
+  MobileScannerController controller = MobileScannerController(
     torchEnabled: true,
     // formats: [BarcodeFormat.qrCode]
     // facing: CameraFacing.front,
-    // detectionSpeed: DetectionSpeed.normal
-    // detectionTimeoutMs: 1000,
-    // returnImage: false,
   );
 
   bool isStarted = true;
-
-  void _startOrStop() {
-    try {
-      if (isStarted) {
-        controller.stop();
-      } else {
-        controller.start();
-      }
-      setState(() {
-        isStarted = !isStarted;
-      });
-    } on Exception catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Something went wrong! $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,13 +33,15 @@ class _BarcodeScannerWithControllerState
             children: [
               MobileScanner(
                 controller: controller,
-                errorBuilder: (context, error, child) {
-                  return ScannerErrorWidget(error: error);
-                },
                 fit: BoxFit.contain,
-                onDetect: (barcode) {
+                // allowDuplicates: true,
+                // controller: MobileScannerController(
+                //   torchEnabled: true,
+                //   facing: CameraFacing.front,
+                // ),
+                onDetect: (barcode, args) {
                   setState(() {
-                    this.barcode = barcode;
+                    this.barcode = barcode.rawValue;
                   });
                 },
               ),
@@ -76,41 +54,33 @@ class _BarcodeScannerWithControllerState
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      ValueListenableBuilder(
-                        valueListenable: controller.hasTorchState,
-                        builder: (context, state, child) {
-                          if (state != true) {
-                            return const SizedBox.shrink();
-                          }
-                          return IconButton(
-                            color: Colors.white,
-                            icon: ValueListenableBuilder(
-                              valueListenable: controller.torchState,
-                              builder: (context, state, child) {
-                                if (state == null) {
-                                  return const Icon(
-                                    Icons.flash_off,
-                                    color: Colors.grey,
-                                  );
-                                }
-                                switch (state as TorchState) {
-                                  case TorchState.off:
-                                    return const Icon(
-                                      Icons.flash_off,
-                                      color: Colors.grey,
-                                    );
-                                  case TorchState.on:
-                                    return const Icon(
-                                      Icons.flash_on,
-                                      color: Colors.yellow,
-                                    );
-                                }
-                              },
-                            ),
-                            iconSize: 32.0,
-                            onPressed: () => controller.toggleTorch(),
-                          );
-                        },
+                      IconButton(
+                        color: Colors.white,
+                        icon: ValueListenableBuilder(
+                          valueListenable: controller.torchState,
+                          builder: (context, state, child) {
+                            if (state == null) {
+                              return const Icon(
+                                Icons.flash_off,
+                                color: Colors.grey,
+                              );
+                            }
+                            switch (state as TorchState) {
+                              case TorchState.off:
+                                return const Icon(
+                                  Icons.flash_off,
+                                  color: Colors.grey,
+                                );
+                              case TorchState.on:
+                                return const Icon(
+                                  Icons.flash_on,
+                                  color: Colors.yellow,
+                                );
+                            }
+                          },
+                        ),
+                        iconSize: 32.0,
+                        onPressed: () => controller.toggleTorch(),
                       ),
                       IconButton(
                         color: Colors.white,
@@ -118,7 +88,10 @@ class _BarcodeScannerWithControllerState
                             ? const Icon(Icons.stop)
                             : const Icon(Icons.play_arrow),
                         iconSize: 32.0,
-                        onPressed: _startOrStop,
+                        onPressed: () => setState(() {
+                          isStarted ? controller.stop() : controller.start();
+                          isStarted = !isStarted;
+                        }),
                       ),
                       Center(
                         child: SizedBox(
@@ -126,12 +99,11 @@ class _BarcodeScannerWithControllerState
                           height: 50,
                           child: FittedBox(
                             child: Text(
-                              barcode?.barcodes.first.rawValue ??
-                                  'Scan something!',
+                              barcode ?? 'Scan something!',
                               overflow: TextOverflow.fade,
                               style: Theme.of(context)
                                   .textTheme
-                                  .headlineMedium!
+                                  .headline4!
                                   .copyWith(color: Colors.white),
                             ),
                           ),
@@ -161,9 +133,9 @@ class _BarcodeScannerWithControllerState
                         icon: const Icon(Icons.image),
                         iconSize: 32.0,
                         onPressed: () async {
-                          final ImagePicker picker = ImagePicker();
+                          final ImagePicker _picker = ImagePicker();
                           // Pick an image
-                          final XFile? image = await picker.pickImage(
+                          final XFile? image = await _picker.pickImage(
                             source: ImageSource.gallery,
                           );
                           if (image != null) {
@@ -196,11 +168,5 @@ class _BarcodeScannerWithControllerState
         },
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
   }
 }
