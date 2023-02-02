@@ -1,7 +1,6 @@
-# FORK of ([https://github.com/mohesu/barcode_scanner](https://github.com/mohesu/barcode_scanner))
-NOTE: this is a fork of barcode_scanner made in order to fix macos error "mobile_scanner/MobileScannerPlugin.swift:93: Fatal error: Unexpectedly found nil while implicitly unwrapping an Optional value"
-This code encapsulate, and so fork as well, the flutter plugin (https://github.com/juliansteenbakker/mobile_scanner)[https://github.com/juliansteenbakker/mobile_scanner] needed for solving the issue.
-All this code is part of the APP (TODO MYAPP)[TODO MYAPP] and so it is supposed to be maintained only accodingly that APP.
+# FORK of ([https://github.com/juliansteenbakker/mobile_scanner](https://github.com/juliansteenbakker/mobile_scanner))
+__NOTE__: this is a fork of barcode_scanner made in order to fix macos error "mobile_scanner/MobileScannerPlugin.swift:93: Fatal error: Unexpectedly found nil while implicitly unwrapping an Optional value" and at the same time work well with [my fork](https://github.com/LorenzoMorelli/barcode_scanner_for_wifiqr) of the flutter plugin (ai_barcode_scanner)[https://github.com/mohesu/barcode_scanner].
+All this code is part of the APP (__WifiQR__)[TODO MYAPP] and so it is supposed to be maintained only accodingly this APP.
 
 # ai_barcode_scanner
 
